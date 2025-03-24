@@ -1,4 +1,5 @@
 import torch
+from putils import Timer
 
 def reconstruct_from_distances_gradient(x_init, y, centroids, num_iters=1000, learning_rate=1e-3, device='cpu'):
     """
@@ -22,7 +23,8 @@ def reconstruct_from_distances_gradient(x_init, y, centroids, num_iters=1000, le
 
         if (iter + 1) % 1000 == 0:
             error = torch.norm(x_true - x_est)
-            print(f"GD Iteration {iter+1}: Error = {error.item()}")
+            loss = 0.5 * torch.sum((d_est - y.view(-1, 1)) ** 2)  # Calculate Loss
+            print(f"GD Iteration {iter+1}: Error = {error.item():.6f}, Loss = {loss.item():.6f}")
 
     return x_est
 
@@ -56,8 +58,9 @@ print(f"Using device: {device}")
 
 # Experiment Setup (D=784, k=128)
 D = 784
-k = 1568 
-num_iters = 100000  # Increased iterations
+k = 1024 
+num_iters = 10000  # Increased iterations
+lr = 1.0 / k
 
 # Generate random centroids and true x
 centroids = torch.randn(k, D, device=device)
@@ -69,18 +72,19 @@ y = torch.tensor([torch.norm(x_true - centroids[i]) for i in range(k)])
 
 # --- Gradient Descent Reconstruction ---
 print("----- Gradient Descent Reconstruction -----")
-x_est_gd = reconstruct_from_distances_gradient(x_init, y, centroids, num_iters=num_iters, learning_rate=1.0/k, device=device)
+timer = Timer()
+x_est_gd = reconstruct_from_distances_gradient(x_init, y, centroids, num_iters=num_iters, learning_rate=lr, device=device)
 gd_error = torch.norm(x_true - x_est_gd)
+print(f"{timer.tick():.2f}s")
 
-
-# --- Original Algorithm Reconstruction ---
-print("\n----- Original Algorithm Reconstruction -----")
-x_est_orig = reconstruct_from_distances(x_init, y, centroids, num_iters=num_iters, step_fraction=1.0/k, device=device)
-orig_error = torch.norm(x_true - x_est_orig)
+# # --- Original Algorithm Reconstruction ---
+# print("\n----- Original Algorithm Reconstruction -----")
+# x_est_orig = reconstruct_from_distances(x_init, y, centroids, num_iters=num_iters, step_fraction=lr, device=device)
+# orig_error = torch.norm(x_true - x_est_orig)
 
 print(f"Initial Error: {torch.norm(x_true - x_init)}")
 print(f"Final GD Error: {gd_error.item()}")
-print(f"Final Original Error: {orig_error.item()}")
+# print(f"Final Original Error: {orig_error.item()}")
 
 # Linear Scaling Rule (Goyal et al., 2017) - when you increase the batch size by a factor of n, you should also increase the learning rate by a factor of n. It keeps the variance of the updates roughly constant.
 # We are doing the opposite.
